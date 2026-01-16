@@ -1,219 +1,116 @@
-import {
-  MapContainer,
-  TileLayer,
-  Marker,
-  Popup,
-  Circle,
-  Pane,
-} from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Circle, Pane } from "react-leaflet";
 import L from "leaflet";
-import { calcDistance } from "../utils/distance";
-import { getFireStyle } from "../utils/fireStyle";
 import "leaflet/dist/leaflet.css";
 
-/* 🔴 ÍCONE CIRCULAR PARA INCÊNDIOS */
-const fireDotIcon = new L.DivIcon({
-  className: "",
-  html: `
-    <div style="
-      width: 14px;
-      height: 14px;
-      background: radial-gradient(circle, #ff6b6b, #dc2626);
-      border: 2px solid #ffffff;
-      border-radius: 50%;
-      box-shadow: 0 0 12px rgba(220,38,38,0.8);
-    "></div>
-  `,
-  iconSize: [14, 14],
-  iconAnchor: [7, 7],
-});
+// 🔴 CONFIGURAÇÃO DO ÍCONE GIGANTE E PULSANTE
+const createFireIcon = (frp) => {
+  // Define a cor com base na intensidade (FRP)
+  const color = frp >= 50 ? "#dc2626" : frp >= 20 ? "#f59e0b" : "#16a34a";
+  
+  return new L.DivIcon({
+    className: "fire-marker-glow", // Esta classe deve estar no seu index.css com a animação
+    html: `
+      <div style="
+        width: 45px; 
+        height: 45px;
+        background: ${color};
+        border-radius: 50%;
+        border: 4px solid white;
+        display: flex; 
+        align-items: center; 
+        justify-content: center;
+        box-shadow: 0 0 25px ${color}, 0 0 10px rgba(0,0,0,0.5);
+      ">
+        <span style="font-size: 24px;">🔥</span>
+      </div>
+    `,
+    iconSize: [45, 45],
+    iconAnchor: [22, 22], // Centraliza o ícone exatamente na coordenada
+  });
+};
 
-/* 🔥 STATUS DO FOGO PELO FRP */
-function getFireStatus(frp) {
-  if (!frp || isNaN(frp)) {
-    return { label: "Desconhecido", color: "#6b7280" };
-  }
-
-  if (frp < 20) {
-    return { label: "Baixo", color: "#16a34a" };
-  }
-
-  if (frp < 50) {
-    return { label: "Médio", color: "#f59e0b" };
-  }
-
-  return { label: "Alto", color: "#dc2626" };
-}
-
-export default function Map({ user, fires, nearbyFires }) {
-  if (!user?.lat || !user?.lng) return null;
-
-  const validFires = fires.filter(
-    (fire) =>
-      fire.latitude !== undefined &&
-      fire.longitude !== undefined &&
-      !isNaN(fire.latitude) &&
-      !isNaN(fire.longitude)
-  );
-
-  const validNearby = nearbyFires.filter(
-    (fire) =>
-      fire.latitude !== undefined &&
-      fire.longitude !== undefined &&
-      !isNaN(fire.latitude) &&
-      !isNaN(fire.longitude)
-  );
+export default function Map({ user, fires, viewLocation }) {
+  // Define o centro do mapa (prioridade para busca, depois localização do usuário)
+  const centerPosition = viewLocation 
+    ? [parseFloat(viewLocation.lat), parseFloat(viewLocation.lng)] 
+    : [parseFloat(user.lat), parseFloat(user.lng)];
 
   return (
-    <div style={{ position: "relative" }}>
+    <div style={{ position: "relative", borderRadius: "20px", overflow: "hidden", border: "1px solid #334155" }}>
       <MapContainer
-        center={[user.lat, user.lng]}
-        zoom={9}
+        key={JSON.stringify(centerPosition)} // Força o mapa a atualizar ao mudar de local
+        center={centerPosition}
+        zoom={10}
         scrollWheelZoom
-        style={{
-          height: "500px",
-          width: "100%",
-          borderRadius: "20px",
-          boxShadow: "0 20px 40px rgba(0,0,0,0.15)",
-        }}
+        style={{ height: "600px", width: "100%" }}
       >
-        {/* 🗺️ MAPA BASE */}
-        <TileLayer
-          attribution="&copy; OpenStreetMap"
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        <TileLayer 
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" 
         />
 
-        {/* 🧱 CAMADAS */}
-        <Pane name="user" style={{ zIndex: 600 }} />
-        <Pane name="markers" style={{ zIndex: 550 }} />
-        <Pane name="nearby" style={{ zIndex: 500 }} />
-        <Pane name="fires" style={{ zIndex: 400 }} />
+        {/* A Pane com zIndex 1000 garante que nossos fogos 
+           fiquem ACIMA dos triângulos ou qualquer outra marcação padrão.
+        */}
+        <Pane name="fire-icons-pane" style={{ zIndex: 1000 }} />
 
-        {/* 📍 SUA LOCALIZAÇÃO */}
-        <Marker pane="user" position={[user.lat, user.lng]}>
-          <Popup>
-            <strong>📍 Sua localização</strong>
-            <br />
-            Latitude: {user.lat}
-            <br />
-            Longitude: {user.lng}
-          </Popup>
+        {/* RENDERIZAÇÃO DE TODOS OS FOCOS DE QUEIMADA */}
+        {fires.map((fire, index) => (
+          <Marker
+            key={`fire-marker-${index}`}
+            pane="fire-icons-pane"
+            position={[parseFloat(fire.latitude), parseFloat(fire.longitude)]}
+            icon={createFireIcon(parseFloat(fire.frp || 0))}
+          >
+            <Popup className="fire-popup">
+              <div style={{ textAlign: 'center', minWidth: '150px' }}>
+                <strong style={{ color: '#dc2626', fontSize: '16px' }}>🚨 FOCO DETECTADO</strong>
+                <hr style={{ margin: '8px 0', opacity: 0.2 }} />
+                <div style={{ textAlign: 'left', fontSize: '13px' }}>
+                  <b>Intensidade (FRP):</b> {fire.frp || "N/A"}<br />
+                  <b>Confiança:</b> {fire.confidence}%<br />
+                  <b>Data:</b> {fire.acq_date || "Recente"}
+                </div>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+
+        {/* LOCALIZAÇÃO DO USUÁRIO (PONTO AZUL PADRÃO) */}
+        <Marker position={[parseFloat(user.lat), parseFloat(user.lng)]}>
+          <Popup>Sua Localização</Popup>
         </Marker>
 
+        {/* RAIO DE MONITORAMENTO DE 10KM */}
         <Circle
-          pane="user"
-          center={[user.lat, user.lng]}
-          radius={10000}
+          center={[parseFloat(user.lat), parseFloat(user.lng)]}
+          radius={10000} // 10km
           pathOptions={{
-            color: "#2563eb",
-            fillColor: "#2563eb",
-            fillOpacity: 0.15,
-            dashArray: "6 6",
+            color: '#3b82f6',
+            fillColor: '#3b82f6',
+            fillOpacity: 0.1,
+            dashArray: '10, 10'
           }}
         />
-
-        {/* 🔥 INCÊNDIOS (CLICÁVEL + STATUS) */}
-        {validFires.map((fire, index) => {
-          const style = getFireStyle(fire.frp);
-          const status = getFireStatus(fire.frp);
-
-          return (
-            <Circle
-              key={`fire-${index}`}
-              pane="fires"
-              center={[
-                Number(fire.latitude),
-                Number(fire.longitude),
-              ]}
-              radius={2500}
-              pathOptions={{
-                color: style.color,
-                fillColor: style.color,
-                fillOpacity: style.fillOpacity,
-              }}
-            >
-              <Popup>
-                <strong>🔥 Incêndio</strong>
-                <br />
-                Status:{" "}
-                <span style={{ color: status.color, fontWeight: "bold" }}>
-                  {status.label}
-                </span>
-                <br />
-                FRP: {fire.frp ?? "N/A"}
-                <br />
-                Confiança: {fire.confidence ?? "N/A"}%
-              </Popup>
-            </Circle>
-          );
-        })}
-
-        {/* 🚨 MARCADORES ATÉ 300km */}
-        {validFires
-          .filter((fire) => {
-            const d = calcDistance(
-              user.lat,
-              user.lng,
-              fire.latitude,
-              fire.longitude
-            );
-            return d <= 300;
-          })
-          .map((fire, index) => (
-            <Marker
-              key={`marker-${index}`}
-              pane="markers"
-              icon={fireDotIcon}
-              position={[
-                Number(fire.latitude),
-                Number(fire.longitude),
-              ]}
-            >
-              <Popup>
-                <strong>🔥 Incêndio detectado</strong>
-                <br />
-                FRP: {fire.frp ?? "N/A"}
-              </Popup>
-            </Marker>
-          ))}
-
-        {/* ⚠️ INCÊNDIOS PRÓXIMOS */}
-        {validNearby.map((fire, index) => (
-          <Circle
-            key={`near-${index}`}
-            pane="nearby"
-            center={[
-              Number(fire.latitude),
-              Number(fire.longitude),
-            ]}
-            radius={5000}
-            pathOptions={{
-              color: "#dc2626",
-              fillColor: "#dc2626",
-              fillOpacity: 0.35,
-            }}
-          />
-        ))}
       </MapContainer>
 
-      {/* 📊 LEGENDA */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: 16,
-          left: 16,
-          background: "rgba(255,255,255,0.95)",
-          padding: "12px 14px",
-          borderRadius: "12px",
-          fontSize: "13px",
-          boxShadow: "0 8px 20px rgba(0,0,0,0.15)",
-        }}
-      >
-        <strong>Legenda</strong>
-        <div>🟢 Fogo baixo</div>
-        <div>🟡 Fogo médio</div>
-        <div>🔴 Fogo alto</div>
-        <div>🔵 Raio do usuário (10km)</div>
+      {/* LEGENDA FIXA NO CANTO DO MAPA */}
+      <div style={{
+        position: "absolute", bottom: 25, left: 25,
+        background: "rgba(255, 255, 255, 0.9)", padding: "12px", borderRadius: "12px",
+        zIndex: 1100, boxShadow: "0 10px 15px rgba(0,0,0,0.2)",
+        fontSize: "12px", color: "#333", border: "1px solid #ddd"
+      }}>
+        <strong style={{ display: 'block', marginBottom: '5px' }}>Monitoramento de Fogo</strong>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+          <div style={{ width: 12, height: 12, borderRadius: "50%", background: "#dc2626" }}></div> Crítico (FRP > 50)
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+          <div style={{ width: 12, height: 12, borderRadius: "50%", background: "#f59e0b" }}></div> Alerta (FRP 20-50)
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <div style={{ width: 12, height: 12, borderRadius: "50%", border: "2px dashed #3b82f6" }}></div> Raio de 10km
+        </div>
       </div>
     </div>
   );
