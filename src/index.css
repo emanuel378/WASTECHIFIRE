@@ -1,0 +1,58 @@
+/* Reset básico */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Segoe UI", Roboto, sans-serif;
+}
+
+body {
+  background: #ffffff; /* azul escuro */
+  color: #f8fafc;
+}
+
+/* Container principal */
+.app {
+  padding: 16px;
+}
+
+/* Título */
+h1 {
+  text-align: center;
+  margin-bottom: 12px;
+  color: #12aa5e;
+}
+
+/* Mensagens */
+.status {
+  text-align: center;
+  margin-bottom: 12px;
+  font-size: 1rem;
+}
+
+.status.safe {
+  color: #22c55e;
+}
+
+.status.alert {
+  color: #ef4444;
+  font-weight: bold;
+}
+
+/* Mapa */
+.leaflet-container {
+  border-radius: 12px;
+  border: 2px solid #f97316;
+  box-shadow: 0 0 20px rgba(249, 115, 22, 0.4);
+}
+
+/* Popup */
+.leaflet-popup-content-wrapper {
+  background: #020617;
+  color: #f8fafc;
+  border-radius: 8px;
+}
+
+.leaflet-popup-tip {
+  background: #020617;
+}
